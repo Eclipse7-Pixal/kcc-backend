@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECLIPSE7 | KCC Instant Result Portal</title>
+    <style>
+        :root {
+            --bg-deep: #050508;
+            --surface: #101018;
+            --accent: #00f0ff;
+            --accent-glow: rgba(0, 240, 255, 0.25);
+            --text-main: #f0f0f5;
+            --text-muted: #8a8a9e;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            background-image: radial-gradient(circle at 50% 20%, #151025 0%, var(--bg-deep) 70%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            background: rgba(16, 16, 24, 0.7);
+            border: 1px solid rgba(0, 240, 255, 0.2);
+            backdrop-filter: blur(16px);
+            border-radius: 16px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8), inset 0 0 15px var(--accent-glow);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--accent);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(5, 5, 8, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #0070f3, var(--accent));
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px var(--accent);
+        }
+
+        /* Loading & Timer View */
+        #loading-view {
+            display: none;
+        }
+
+        .timer-display {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 20px 0;
+            text-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 25px;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: var(--accent);
+            box-shadow: 0 0 10px var(--accent);
+            transition: width 1s linear;
+        }
+
+        .status-text {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            min-height: 40px;
+        }
+
+        .error-msg {
+            color: #ff4d4d;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Form View -->
+        <div id="form-view">
+            <div class="logo">ECLIPSE7 // KCC</div>
+            <div class="subtitle">Secure Automated Result & A3 PDF Exporter</div>
+            
+            <div class="input-group">
+                <label>Username / Roll Number</label>
+                <input type="text" id="username" placeholder="Enter your KCC username">
+            </div>
+            
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" id="password" placeholder="Enter your password">
+            </div>
+
+            <button class="btn" onclick="startProcess()">Generate A3 Report</button>
+            <div id="error-box" class="error-msg"></div>
+        </div>
+
+        <!-- Loading / Timer View -->
+        <div id="loading-view">
+            <div class="logo">PROCESSING</div>
+            <div class="subtitle">Automating secure portal connection...</div>
+            
+            <div class="timer-display" id="timer">30</div>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress"></div>
+            </div>
+            
+            <div class="status-text" id="status-text">Connecting to KCC secure servers...</div>
+            <button class="btn" style="background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); margin-top: 20px;" onclick="resetForm()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = "https://your-render-backend-url.onrender.com"; // Replace with your deployed backend URL
+
+        let countdownInterval;
+        let progressInterval;
+
+        async function startProcess() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorBox = document.getElementById('error-box');
+
+            if (!username || !password) {
+                errorBox.style.display = 'block';
+                errorBox.innerText = 'Please enter both username and password.';
+                return;
+            }
+
+            errorBox.style.display = 'none';
+            document.getElementById('form-view').style.display = 'none';
+            document.getElementById('loading-view').style.display = 'block';
+
+            // Start 30s UI timer countdown and smooth progress bar
+            let timeLeft = 30;
+            const timerEl = document.getElementById('timer');
+            const progressEl = document.getElementById('progress');
+            const statusEl = document.getElementById('status-text');
+
+            timerEl.innerText = timeLeft;
+            progressEl.style.width = '0%';
+
+            let elapsed = 0;
+            progressInterval = setInterval(() => {
+                elapsed += 1;
+                let pct = (elapsed / 30) * 100;
+                if (pct > 95) pct = 95; // Hold at 95% until response arrives
+                progressEl.style.width = pct + '%';
+            }, 300);
+
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft >= 0) {
+                    timerEl.innerText = timeLeft;
+                    if (timeLeft === 20) statusEl.innerText = "Authenticating credentials on KCC portal...";
+                    if (timeLeft === 10) statusEl.innerText = "Extracting graphs & formatting A3 PDF layout...";
+                }
+            }, 1000);
+
+            try {
+                // Call backend API
+                const response = await fetch(`${BACKEND_URL}/api/fetch-result`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || 'Failed to generate PDF.');
+                }
+
+                // If fast/instant, clear timers and complete progress bar immediately
+                clearInterval(countdownInterval);
+                clearInterval(progressInterval);
+                progressEl.style.width = '100%';
+                timerEl.innerText = '0';
+                statusEl.innerText = 'Success! Downloading your A3 PDF...';
+
+                // Download blob as PDF file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `KCC_Progress_Report_${username}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+
+                setTimeout(() => resetForm(), 3000);
+
+            } catch (err) {
+                clearInterval(countdownInterval);
+                clearInterval(progressInterval);
+                document.getElementById('loading-view').style.display = 'none';
+                document.getElementById('form-view').style.display = 'block';
+                errorBox.style.display = 'block';
+                errorBox.innerText = err.message;
+            }
+        }
+
+        function resetForm() {
+            clearInterval(countdownInterval);
+            clearInterval(progressInterval);
+            document.getElementById('loading-view').style.display = 'none';
+            document.getElementById('form-view').style.display = 'block';
+            document.getElementById('password').value = '';
+        }
+    </script>
+</body>
+</html>
