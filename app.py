@@ -1,11 +1,10 @@
 import os
-import time
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS so your GitHub Pages frontend can talk to this backend
+CORS(app)
 
 PDF_PATH = "student_result.pdf"
 
@@ -21,13 +20,17 @@ def fetch_result():
 
   try:
     with sync_playwright() as p:
-      # Launch headless browser
+      # Explicitly pass arguments optimized for Render cloud environment
       browser = p.chromium.launch(
-          headless=True, args=["--no-sandbox", "--disable-setuid-sandbox"]
+          headless=True,
+          args=[
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+              "--disable-gpu",
+          ],
       )
-      context = browser.new_context(
-          viewport={"width": 1280, "height": 800}
-      )
+      context = browser.new_context(viewport={"width": 1280, "height": 800})
       page = context.new_page()
 
       # 1. Navigate to KCC Login Page
@@ -40,26 +43,23 @@ def fetch_result():
       page.fill('input[placeholder*="user name" i]', username)
       page.fill('input[placeholder*="password" i]', password)
 
-      # 3. Click Login Button & Wait for Navigation to Result/Progress Page
+      # 3. Click Login Button & Wait for Navigation
       with page.expect_navigation(waitUntil="networkidle"):
         page.click('button:has-text("Login")')
 
-      # Check if login failed (e.g., error toast or still on login page)
       if "exam-sign-in" in page.url:
         browser.close()
         return jsonify(
             {"error": "Invalid credentials or login failed. Please check."}
         ), 401
 
-      # 4. Navigate or wait for progress/result section
-      # Based on your portal screenshot, it redirects to /progress_report
+      # 4. Navigate to Progress Report
       if not page.url.endswith("/progress_report"):
         page.goto(
             "https://kcc-student.eduaakar.com/progress_report",
             waitUntil="networkidle",
         )
 
-      # Optional delay to ensure charts/graphs load completely
       page.wait_for_timeout(2000)
 
       # 5. Print to PDF configured for A3 layout
@@ -72,7 +72,6 @@ def fetch_result():
 
       browser.close()
 
-    # Send the generated PDF back to the user
     return send_file(
         PDF_PATH,
         as_attachment=True,
