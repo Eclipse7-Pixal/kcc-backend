@@ -4,14 +4,15 @@ from flask_cors import CORS
 from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
-CORS(app)
+# Explicitly allow all origins so Odoo can connect seamlessly
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 PDF_PATH = "student_result.pdf"
 
 
 @app.route("/api/fetch-result", methods=["POST"])
 def fetch_result():
-  data = request.json
+  data = request.json or {}
   username = data.get("username")
   password = data.get("password")
 
@@ -20,7 +21,6 @@ def fetch_result():
 
   try:
     with sync_playwright() as p:
-      # Explicitly pass arguments optimized for Render cloud environment
       browser = p.chromium.launch(
           headless=True,
           args=[
@@ -33,17 +33,13 @@ def fetch_result():
       context = browser.new_context(viewport={"width": 1280, "height": 800})
       page = context.new_page()
 
-      # 1. Navigate to KCC Login Page
       page.goto(
           "https://kcc-student.eduaakar.com/exam-sign-in",
           waitUntil="networkidle",
       )
-
-      # 2. Input Credentials
       page.fill('input[placeholder*="user name" i]', username)
       page.fill('input[placeholder*="password" i]', password)
 
-      # 3. Click Login Button & Wait for Navigation
       with page.expect_navigation(waitUntil="networkidle"):
         page.click('button:has-text("Login")')
 
@@ -53,7 +49,6 @@ def fetch_result():
             {"error": "Invalid credentials or login failed. Please check."}
         ), 401
 
-      # 4. Navigate to Progress Report
       if not page.url.endswith("/progress_report"):
         page.goto(
             "https://kcc-student.eduaakar.com/progress_report",
@@ -62,14 +57,12 @@ def fetch_result():
 
       page.wait_for_timeout(2000)
 
-      # 5. Print to PDF configured for A3 layout
       page.pdf(
           path=PDF_PATH,
           format="A3",
           print_background=True,
           margin={"top": "1cm", "bottom": "1cm", "left": "1cm", "right": "1cm"},
       )
-
       browser.close()
 
     return send_file(
@@ -85,4 +78,3 @@ def fetch_result():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-  
