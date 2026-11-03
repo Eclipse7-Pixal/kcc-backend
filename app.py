@@ -4,10 +4,19 @@ from flask_cors import CORS
 from playwright.sync_api import sync_playwright
 
 app = Flask(__name__)
-# Explicitly allow all origins so Odoo can connect seamlessly
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 PDF_PATH = "student_result.pdf"
+
+
+@app.route("/", methods=["GET"])
+def home():
+  return jsonify(
+      {
+          "status": "online",
+          "message": "ECLIPSE7 KCC Backend is running successfully!",
+      }
+  )
 
 
 @app.route("/api/fetch-result", methods=["POST"])
@@ -33,14 +42,15 @@ def fetch_result():
       context = browser.new_context(viewport={"width": 1280, "height": 800})
       page = context.new_page()
 
+      # Corrected to wait_until with underscore
       page.goto(
           "https://kcc-student.eduaakar.com/exam-sign-in",
-          waitUntil="networkidle",
+          wait_until="networkidle",
       )
       page.fill('input[placeholder*="user name" i]', username)
       page.fill('input[placeholder*="password" i]', password)
 
-      with page.expect_navigation(waitUntil="networkidle"):
+      with page.expect_navigation(wait_until="networkidle"):
         page.click('button:has-text("Login")')
 
       if "exam-sign-in" in page.url:
@@ -52,7 +62,7 @@ def fetch_result():
       if not page.url.endswith("/progress_report"):
         page.goto(
             "https://kcc-student.eduaakar.com/progress_report",
-            waitUntil="networkidle",
+            wait_until="networkidle",
         )
 
       page.wait_for_timeout(2000)
@@ -78,12 +88,3 @@ def fetch_result():
 if __name__ == "__main__":
   port = int(os.environ.get("PORT", 5000))
   app.run(host="0.0.0.0", port=port)
-
-@app.route("/", methods=["GET"])
-def home():
-  return jsonify(
-      {
-          "status": "online",
-          "message": "ECLIPSE7 KCC Backend is running successfully!",
-      }
-  )
